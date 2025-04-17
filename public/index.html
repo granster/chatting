@@ -101,19 +101,20 @@
       appId: "1:174118082802:web:38f8d521f24a9d3f88d86b",
       measurementId: "G-X6CJ742JJD"
     };
-
+  
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-
+  
     const socket = io();
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
-
+  
+    let isAdmin = false;
     const seenMessages = new Set();
     let hasLoadedHistory = false;
-
-    // Load last 100 messages from Firebase
+  
+    // Firebase message load
     db.ref('messages').limitToLast(100).once('value', snapshot => {
       const data = snapshot.val();
       if (data) {
@@ -122,35 +123,55 @@
       messages.scrollTop = messages.scrollHeight;
       hasLoadedHistory = true;
     });
-
+  
     // Incoming messages
     socket.on('chat message', function(msg) {
       if (hasLoadedHistory) {
-        appendMessage(msg, msg + Math.random()); // Make it "unique enough"
-        // DO NOT save to Firebase here (to prevent loop)
+        appendMessage(msg, JSON.stringify(msg) + Math.random());
       }
     });
-
-    // Sending messages
+  
+    // Admin confirmation response
+    socket.on('admin confirmed', () => {
+      isAdmin = true;
+      alert("Admin mode activated ✅");
+    });
+  
+    // Send message or admin login
     form.addEventListener('submit', function(e) {
       e.preventDefault();
       const text = input.value.trim();
-      if (text) {
-        socket.emit('chat message', text);
-        input.value = '';
+      if (!text) return;
+  
+      if (text.startsWith("/admin ")) {
+        const token = text.split(" ")[1];
+        socket.emit("admin login", token);
+      } else {
+        socket.emit("chat message", text);
       }
+  
+      input.value = '';
     });
-
-    function appendMessage(msg, id = msg) {
+  
+    function appendMessage(msg, id = JSON.stringify(msg)) {
       if (seenMessages.has(id)) return;
       seenMessages.add(id);
-
+  
       const item = document.createElement('li');
       item.className = 'message';
-      item.textContent = msg;
+  
+      if (typeof msg === 'string') {
+        item.textContent = msg;
+      } else {
+        item.textContent = msg.text || '';
+        if (isAdmin && msg.ip) {
+          item.textContent += ` (${msg.ip})`;
+        }
+      }
+  
       messages.appendChild(item);
       messages.scrollTop = messages.scrollHeight;
     }
-  </script>
+  </script>  
 </body>
 </html>

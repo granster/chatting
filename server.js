@@ -1,34 +1,43 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require('socket.io');
-const path = require('path');
+const adminSockets = new Set();
+const ADMIN_SECRET = "pizza123"; // change this to your secret
 
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server);
-
-// Serve static files from the "public" directory
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Fallback: serve index.html for the root route
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// Socket.io logic
 io.on('connection', (socket) => {
-  console.log('A user connected');
+  const ip = socket.handshake.headers['x-forwarded-for'] || socket.conn.remoteAddress;
 
+  // Admin login
+  socket.on("admin login", (token) => {
+    if (token === ADMIN_SECRET) {
+      adminSockets.add(socket.id);
+      socket.emit("admin confirmed");
+    }
+  });
+
+  // Handle incoming messages
   socket.on('chat message', (msg) => {
-    io.emit('chat message', msg);
+    const messageForEveryone = { text: msg };
+    const messageWithIP = { text: msg, ip: ip };
+
+    // Send message with IP to admins only
+    adminSockets.forEach(id => {
+      const adminSocket = io.sockets.sockets.get(id);
+      if (adminSocket) {
+        adminSocket.emit('chat message', messageWithIP);
+      }
+    });
+
+    // Send message without IP to everyone else
+    io.sockets.sockets.forEach((s) => {
+      if (!adminSockets.has(s.id)) {
+        s.emit('chat message', messageForEveryone);
+      }
+    });
+
+    // Save message (only plain version) to Firebase
+    db.ref('messages').push(messageForEveryone);
   });
 
+  // Cleanup on disconnect
   socket.on('disconnect', () => {
-    console.log('User disconnected');
+    adminSockets.delete(socket.id);
   });
-});
-
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
 });
