@@ -8,8 +8,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// ✅ Replace this if using Render secret path
-const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // <-- or './serviceAccountKey.json' locally
+// 🔒 Use this path on Render, or './serviceAccountKey.json' locally
+const serviceAccount = require('/etc/secrets/serviceAccountKey.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -23,14 +23,12 @@ app.get('/', (req, res) => {
 });
 
 const adminSockets = new Set();
-const ADMIN_SECRET = "pizza123"; // change this if needed
+const ADMIN_SECRET = "pizza123";
 
 io.on('connection', (socket) => {
-  // ✅ Clean first IP only
   const rawIP = socket.handshake.headers['x-forwarded-for'] || socket.conn.remoteAddress;
   const ip = rawIP.split(',')[0].trim();
 
-  // 🔐 Admin login handler
   socket.on("admin login", (token) => {
     if (token === ADMIN_SECRET) {
       adminSockets.add(socket.id);
@@ -38,25 +36,20 @@ io.on('connection', (socket) => {
     }
   });
 
-  // 💬 Message handler
   socket.on('chat message', (msg) => {
     if (typeof msg !== 'string' || !msg.trim()) return;
 
-    const publicMsg = { text: msg };
-    const msgWithIP = { text: msg, ip };
+    const messageWithIP = { text: msg, ip };
 
-    // 🔄 Emit correct version to each socket
     io.sockets.sockets.forEach((s) => {
       const isAdmin = adminSockets.has(s.id);
-      const outgoing = isAdmin ? msgWithIP : publicMsg;
-      s.emit('chat message', outgoing);
+      s.emit('chat message', isAdmin ? messageWithIP : { text: msg });
     });
 
-    // 💾 Save public-safe version to Firebase
-    db.ref('messages').push(publicMsg);
+    // ✅ Save full message (including IP) to Firebase
+    db.ref('messages').push(messageWithIP);
   });
 
-  // 🧹 Cleanup on disconnect
   socket.on('disconnect', () => {
     adminSockets.delete(socket.id);
   });

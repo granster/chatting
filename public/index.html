@@ -5,10 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Chat App</title>
   <style>
-    * {
-      box-sizing: border-box;
-    }
-
+    * { box-sizing: border-box; }
     body {
       margin: 0;
       padding: 0;
@@ -19,7 +16,6 @@
       flex-direction: column;
       height: 100vh;
     }
-
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -30,7 +26,6 @@
       flex-direction: column;
       gap: 0.5rem;
     }
-
     .message {
       background: #1e1e1e;
       padding: 0.75rem 1rem;
@@ -38,14 +33,12 @@
       word-wrap: break-word;
       max-width: 80%;
     }
-
     #form {
       display: flex;
       padding: 1rem;
       background-color: #1a1a1a;
       gap: 0.75rem;
     }
-
     #input {
       flex: 1;
       padding: 0.75rem;
@@ -53,7 +46,6 @@
       border-radius: 6px;
       font-size: 1rem;
     }
-
     #send {
       background-color: #ff7675;
       color: white;
@@ -63,16 +55,9 @@
       border-radius: 6px;
       cursor: pointer;
     }
-
     @media (max-width: 600px) {
-      #input, #send {
-        font-size: 1rem;
-        padding: 0.65rem;
-      }
-
-      .message {
-        font-size: 0.95rem;
-      }
+      #input, #send { font-size: 1rem; padding: 0.65rem; }
+      .message { font-size: 0.95rem; }
     }
   </style>
 </head>
@@ -86,7 +71,6 @@
   <!-- Firebase SDKs -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
   <!-- Socket.IO -->
   <script src="/socket.io/socket.io.js"></script>
 
@@ -96,25 +80,23 @@
       authDomain: "chatting-f4972.firebaseapp.com",
       databaseURL: "https://chatting-f4972-default-rtdb.firebaseio.com",
       projectId: "chatting-f4972",
-      storageBucket: "chatting-f4972.firebasestorage.app",
+      storageBucket: "chatting-f4972.appspot.com",
       messagingSenderId: "174118082802",
       appId: "1:174118082802:web:38f8d521f24a9d3f88d86b",
       measurementId: "G-X6CJ742JJD"
     };
-  
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-  
+
     const socket = io();
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
-  
+
     let isAdmin = false;
     const seenMessages = new Set();
     let hasLoadedHistory = false;
-  
-    // Firebase message load
+
     db.ref('messages').limitToLast(100).once('value', snapshot => {
       const data = snapshot.val();
       if (data) {
@@ -123,55 +105,58 @@
       messages.scrollTop = messages.scrollHeight;
       hasLoadedHistory = true;
     });
-  
-    // Incoming messages
+
     socket.on('chat message', function(msg) {
       if (hasLoadedHistory) {
         appendMessage(msg, JSON.stringify(msg) + Math.random());
       }
     });
-  
-    // Admin confirmation response
+
     socket.on('admin confirmed', () => {
       isAdmin = true;
       alert("Admin mode activated ✅");
+
+      // Refresh messages to re-render with IPs
+      messages.innerHTML = '';
+      db.ref('messages').limitToLast(100).once('value', snapshot => {
+        const data = snapshot.val();
+        if (data) {
+          Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
+        }
+      });
     });
-  
-    // Send message or admin login
+
     form.addEventListener('submit', function(e) {
       e.preventDefault();
       const text = input.value.trim();
       if (!text) return;
-  
       if (text.startsWith("/admin ")) {
         const token = text.split(" ")[1];
         socket.emit("admin login", token);
       } else {
         socket.emit("chat message", text);
       }
-  
       input.value = '';
     });
-  
+
     function appendMessage(msg, id = JSON.stringify(msg)) {
       if (seenMessages.has(id)) return;
       seenMessages.add(id);
-  
       const item = document.createElement('li');
       item.className = 'message';
-  
       if (typeof msg === 'string') {
         item.textContent = msg;
-      } else {
-        item.textContent = msg.text || '';
+      } else if (typeof msg === 'object' && msg.text) {
+        item.textContent = msg.text;
         if (isAdmin && msg.ip) {
           item.textContent += ` (${msg.ip})`;
         }
+      } else {
+        item.textContent = '[invalid message]';
       }
-  
       messages.appendChild(item);
       messages.scrollTop = messages.scrollHeight;
     }
-  </script>  
+  </script>
 </body>
 </html>
