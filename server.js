@@ -1,10 +1,32 @@
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const path = require('path');
+const admin = require('firebase-admin');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server);
+
+const serviceAccount = require('/etc/secrets/serviceAccountKey.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: 'https://chatting-f4972-default-rtdb.firebaseio.com'
+});
+const db = admin.database();
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 const adminSockets = new Set();
-const ADMIN_SECRET = "pizza123"; // change this to your secret
+const ADMIN_SECRET = "pizza123"; // your admin login token
 
 io.on('connection', (socket) => {
   const ip = socket.handshake.headers['x-forwarded-for'] || socket.conn.remoteAddress;
 
-  // Admin login
   socket.on("admin login", (token) => {
     if (token === ADMIN_SECRET) {
       adminSockets.add(socket.id);
@@ -12,32 +34,29 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle incoming messages
   socket.on('chat message', (msg) => {
-    const messageForEveryone = { text: msg };
-    const messageWithIP = { text: msg, ip: ip };
+    if (typeof msg !== 'string' || !msg.trim()) return;
 
-    // Send message with IP to admins only
-    adminSockets.forEach(id => {
-      const adminSocket = io.sockets.sockets.get(id);
-      if (adminSocket) {
-        adminSocket.emit('chat message', messageWithIP);
-      }
-    });
+    const publicMsg = { text: msg };
+    const msgWithIP = { text: msg, ip };
 
-    // Send message without IP to everyone else
     io.sockets.sockets.forEach((s) => {
-      if (!adminSockets.has(s.id)) {
-        s.emit('chat message', messageForEveryone);
+      if (adminSockets.has(s.id)) {
+        s.emit('chat message', msgWithIP);
+      } else {
+        s.emit('chat message', publicMsg);
       }
     });
 
-    // Save message (only plain version) to Firebase
-    db.ref('messages').push(messageForEveryone);
+    db.ref('messages').push(publicMsg);
   });
 
-  // Cleanup on disconnect
   socket.on('disconnect', () => {
     adminSockets.delete(socket.id);
   });
+});
+
+const PORT = process.env.PORT || 3000;
+server.listen(PORT, () => {
+  console.log(`Server running at http://localhost:${PORT}`);
 });
