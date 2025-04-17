@@ -33,6 +33,15 @@
       word-wrap: break-word;
       max-width: 80%;
     }
+    .message img.chat-img {
+      max-width: 100%;
+      max-height: 300px;
+      display: block;
+      border-radius: 8px;
+      margin-top: 0.5rem;
+      border: 1px solid #333;
+      object-fit: contain;
+    }
     #form {
       display: flex;
       padding: 1rem;
@@ -56,7 +65,7 @@
       cursor: pointer;
     }
   </style>
-  <!-- Firebase SDKs -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <!-- Socket.IO -->
@@ -69,7 +78,6 @@
     <button id="send">Send</button>
   </form>
 
-  <!-- 🔥 YOUR SCRIPT -->
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyBz4pGNNkQa3cKN4WhO3OA7a_M33CJqYU8",
@@ -101,20 +109,39 @@
       const item = document.createElement('li');
       item.className = 'message';
 
-      let display = msg.text;
+      const isImage = msg.text.match(/\.(jpeg|jpg|png|gif|webp)$/i) && msg.text.startsWith("http");
+
+      if (isImage) {
+        const img = document.createElement('img');
+        img.src = msg.text;
+        img.alt = "Image";
+        img.className = 'chat-img';
+        item.appendChild(img);
+      } else {
+        item.textContent = msg.text;
+      }
 
       if (isAdmin) {
-        if (msg.ip) display += ` (${msg.ip})`;
+        if (msg.ip) {
+          const ipTag = document.createElement('span');
+          ipTag.style.fontSize = '0.8rem';
+          ipTag.style.color = '#aaa';
+          ipTag.textContent = ` (${msg.ip})`;
+          item.appendChild(ipTag);
+        }
         if (msg.timestamp) {
           const time = new Date(msg.timestamp).toLocaleTimeString([], {
             hour: '2-digit',
             minute: '2-digit'
           });
-          display += ` @ ${time}`;
+          const timeTag = document.createElement('span');
+          timeTag.style.fontSize = '0.8rem';
+          timeTag.style.color = '#aaa';
+          timeTag.textContent = ` @ ${time}`;
+          item.appendChild(timeTag);
         }
       }
 
-      item.textContent = display;
       messages.appendChild(item);
       messages.scrollTop = messages.scrollHeight;
     }
