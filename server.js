@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// 🔒 Use this path on Render, or './serviceAccountKey.json' locally
+// Use this on Render, or './serviceAccountKey.json' locally
 const serviceAccount = require('/etc/secrets/serviceAccountKey.json');
 
 admin.initializeApp({
@@ -18,17 +18,20 @@ admin.initializeApp({
 const db = admin.database();
 
 app.use(express.static(path.join(__dirname, 'public')));
+
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const adminSockets = new Set();
-const ADMIN_SECRET = "pizza123";
+const ADMIN_SECRET = "pizza123"; // Change to your preferred secret
 
 io.on('connection', (socket) => {
+  // 🔒 Get first IP (Cloudflare + Render may give a list)
   const rawIP = socket.handshake.headers['x-forwarded-for'] || socket.conn.remoteAddress;
   const ip = rawIP.split(',')[0].trim();
 
+  // 🔐 Handle admin login
   socket.on("admin login", (token) => {
     if (token === ADMIN_SECRET) {
       adminSockets.add(socket.id);
@@ -36,6 +39,7 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 💬 Message handling
   socket.on('chat message', (msg) => {
     if (typeof msg !== 'string' || !msg.trim()) return;
 
@@ -46,7 +50,7 @@ io.on('connection', (socket) => {
       s.emit('chat message', isAdmin ? messageWithIP : { text: msg });
     });
 
-    // ✅ Save full message (including IP) to Firebase
+    // 💾 Store full message (including IP)
     db.ref('messages').push(messageWithIP);
   });
 
