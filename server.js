@@ -8,7 +8,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const serviceAccount = require('/etc/secrets/serviceAccountKey.json');
+// ✅ Replace this if using Render secret path
+const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // <-- or './serviceAccountKey.json' locally
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -22,11 +23,14 @@ app.get('/', (req, res) => {
 });
 
 const adminSockets = new Set();
-const ADMIN_SECRET = "pizza123"; // your admin login token
+const ADMIN_SECRET = "pizza123"; // change this if needed
 
 io.on('connection', (socket) => {
-  const ip = socket.handshake.headers['x-forwarded-for'] || socket.conn.remoteAddress;
+  // ✅ Clean first IP only
+  const rawIP = socket.handshake.headers['x-forwarded-for'] || socket.conn.remoteAddress;
+  const ip = rawIP.split(',')[0].trim();
 
+  // 🔐 Admin login handler
   socket.on("admin login", (token) => {
     if (token === ADMIN_SECRET) {
       adminSockets.add(socket.id);
@@ -34,23 +38,25 @@ io.on('connection', (socket) => {
     }
   });
 
+  // 💬 Message handler
   socket.on('chat message', (msg) => {
     if (typeof msg !== 'string' || !msg.trim()) return;
 
     const publicMsg = { text: msg };
     const msgWithIP = { text: msg, ip };
 
+    // 🔄 Emit correct version to each socket
     io.sockets.sockets.forEach((s) => {
-      if (adminSockets.has(s.id)) {
-        s.emit('chat message', msgWithIP);
-      } else {
-        s.emit('chat message', publicMsg);
-      }
+      const isAdmin = adminSockets.has(s.id);
+      const outgoing = isAdmin ? msgWithIP : publicMsg;
+      s.emit('chat message', outgoing);
     });
 
+    // 💾 Save public-safe version to Firebase
     db.ref('messages').push(publicMsg);
   });
 
+  // 🧹 Cleanup on disconnect
   socket.on('disconnect', () => {
     adminSockets.delete(socket.id);
   });
@@ -58,5 +64,5 @@ io.on('connection', (socket) => {
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`✅ Server running on http://localhost:${PORT}`);
 });
