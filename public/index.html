@@ -54,29 +54,56 @@
     <button id="send">Send</button>
   </form>
 
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+  <!-- Socket.IO -->
   <script src="/socket.io/socket.io.js"></script>
+
   <script>
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyBz4pGNNkQa3cKN4WhO3OA7a_M33CJqYU8",
+      authDomain: "chatting-f4972.firebaseapp.com",
+      databaseURL: "https://chatting-f4972-default-rtdb.firebaseio.com",
+      projectId: "chatting-f4972",
+      storageBucket: "chatting-f4972.firebasestorage.app",
+      messagingSenderId: "174118082802",
+      appId: "1:174118082802:web:38f8d521f24a9d3f88d86b",
+      measurementId: "G-X6CJ742JJD"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     const socket = io();
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
 
-    // Load previous 100 messages
-    socket.on('chat history', function(history) {
-      history.forEach((msg) => {
-        const item = document.createElement('li');
-        item.textContent = msg;
-        messages.appendChild(item);
-      });
-      messages.scrollTop = messages.scrollHeight;
+    // Load last 100 messages from Firebase
+    db.ref('messages').limitToLast(100).once('value', snapshot => {
+      const data = snapshot.val();
+      if (data) {
+        Object.values(data).forEach((msg) => {
+          const item = document.createElement('li');
+          item.textContent = msg;
+          messages.appendChild(item);
+        });
+        messages.scrollTop = messages.scrollHeight;
+      }
     });
 
-    // Add new message
+    // Listen for real-time incoming messages
     socket.on('chat message', function(msg) {
       const item = document.createElement('li');
       item.textContent = msg;
       messages.appendChild(item);
       messages.scrollTop = messages.scrollHeight;
+
+      // Save message to Firebase
+      db.ref('messages').push(msg);
     });
 
     // Send new message
