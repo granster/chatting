@@ -18,6 +18,8 @@
       flex: 1;
       overflow-y: scroll;
       padding: 1rem;
+      list-style-type: none;
+      margin: 0;
     }
 
     #form {
@@ -59,19 +61,31 @@
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
 
+    // Load previous 100 messages
+    socket.on('chat history', function(history) {
+      history.forEach((msg) => {
+        const item = document.createElement('li');
+        item.textContent = msg;
+        messages.appendChild(item);
+      });
+      messages.scrollTop = messages.scrollHeight;
+    });
+
+    // Add new message
+    socket.on('chat message', function(msg) {
+      const item = document.createElement('li');
+      item.textContent = msg;
+      messages.appendChild(item);
+      messages.scrollTop = messages.scrollHeight;
+    });
+
+    // Send new message
     form.addEventListener('submit', function(e) {
       e.preventDefault();
       if (input.value) {
         socket.emit('chat message', input.value);
         input.value = '';
       }
-    });
-
-    socket.on('chat message', function(msg) {
-      const item = document.createElement('li');
-      item.textContent = msg;
-      messages.appendChild(item);
-      messages.scrollTop = messages.scrollHeight;
     });
   </script>
 </body>
