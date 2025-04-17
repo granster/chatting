@@ -101,38 +101,37 @@
       appId: "1:174118082802:web:38f8d521f24a9d3f88d86b",
       measurementId: "G-X6CJ742JJD"
     };
-  
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-  
+
     const socket = io();
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
-  
+
+    const seenMessages = new Set();
     let hasLoadedHistory = false;
-  
+
     // Load last 100 messages from Firebase
     db.ref('messages').limitToLast(100).once('value', snapshot => {
       const data = snapshot.val();
       if (data) {
-        Object.values(data).forEach((msg) => {
-          appendMessage(msg);
-        });
+        Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
       }
       messages.scrollTop = messages.scrollHeight;
       hasLoadedHistory = true;
     });
-  
-    // Add messages from Socket.IO (only after Firebase history is loaded)
+
+    // Incoming messages
     socket.on('chat message', function(msg) {
       if (hasLoadedHistory) {
-        appendMessage(msg);
-        db.ref('messages').push(msg);
+        appendMessage(msg, msg + Math.random()); // Make it "unique enough"
+        // DO NOT save to Firebase here (to prevent loop)
       }
     });
-  
-    // Send message
+
+    // Sending messages
     form.addEventListener('submit', function(e) {
       e.preventDefault();
       const text = input.value.trim();
@@ -141,12 +140,16 @@
         input.value = '';
       }
     });
-  
-    function appendMessage(msg) {
+
+    function appendMessage(msg, id = msg) {
+      if (seenMessages.has(id)) return;
+      seenMessages.add(id);
+
       const item = document.createElement('li');
       item.className = 'message';
       item.textContent = msg;
       messages.appendChild(item);
+      messages.scrollTop = messages.scrollHeight;
     }
   </script>
 </body>
