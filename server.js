@@ -9,7 +9,7 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 // 🔐 Secure key file — use Render path or local
-const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // or './serviceAccountKey.json' locally
+const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // or './serviceAccountKey.json'
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -42,7 +42,7 @@ io.on('connection', (socket) => {
     const fullMessage = {
       text: msg,
       ip,
-      timestamp: Date.now() // ⏱️ always store time
+      timestamp: Date.now()
     };
 
     io.emit('chat message', fullMessage);
