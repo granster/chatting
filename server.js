@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// 🔐 Firebase Admin Setup using Render Secret File
+// 🔐 Firebase Admin Setup for Render
 const serviceAccount = require('/etc/secrets/serviceAccountKey.json');
 
 admin.initializeApp({
@@ -39,7 +39,6 @@ io.on('connection', (socket) => {
       socket.emit('history', messages);
     });
 
-  // Handle new message
   socket.on('chat message', (text) => {
     if (typeof text !== 'string' || !text.trim()) return;
 
@@ -49,8 +48,14 @@ io.on('connection', (socket) => {
       timestamp: Date.now(),
     };
 
-    db.ref('messages').push(msg); // store in Firebase
-    io.emit('chat message', msg); // send to all clients
+    db.ref('messages').push(msg);
+    io.emit('chat message', msg);
+  });
+
+  socket.on('admin login', (token) => {
+    if (token === 'pizza123') {
+      socket.emit('admin confirmed');
+    }
   });
 
   socket.on('disconnect', () => {
