@@ -8,7 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // Or './serviceAccountKey.json' locally
+const serviceAccount = require('/etc/secrets/serviceAccountKey.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -24,22 +24,13 @@ app.get('/', (req, res) => {
 
 io.on('connection', (socket) => {
   const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim() || socket.conn.remoteAddress;
-
   console.log('📡 New connection:', ip);
 
-  db.ref('messages/text').limitToLast(100).once('value', (snapshot) => {
-    const messages = [];
-    snapshot.forEach((child) => messages.push(child.val()));
-    socket.emit('history', messages);
-  });
-
   socket.on('chat message', (data) => {
-    const { text, channel } = data;
+    const { text, channel = 'text' } = data;
     if (typeof text !== 'string' || !text.trim()) return;
 
-    const path = channel || 'text';
-
-    if (path === 'images') {
+    if (channel === 'images') {
       const isImage = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i.test(text.trim());
       if (!isImage) return;
     }
@@ -50,8 +41,14 @@ io.on('connection', (socket) => {
       timestamp: Date.now()
     };
 
-    db.ref(`messages/${path}`).push(msg);
+    db.ref(`messages/${channel}`).push(msg);
     io.emit('chat message', msg);
+  });
+
+  db.ref('messages/text').limitToLast(100).once('value', snapshot => {
+    const messages = [];
+    snapshot.forEach(child => messages.push(child.val()));
+    socket.emit('history', messages);
   });
 
   socket.on('admin login', (token) => {
