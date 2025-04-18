@@ -99,9 +99,9 @@
 
     let isAdmin = false;
     const seenMessages = new Set();
+    let historyLoaded = false;
 
     function appendMessage(msg, id) {
-      // Prefer Firebase key if given, else build unique fallback
       if (!id) {
         const timestamp = msg.timestamp || Date.now();
         id = `${msg.text}-${msg.ip || 'x'}-${timestamp}`;
@@ -155,13 +155,16 @@
         if (data) {
           Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
         }
+        historyLoaded = true;
       });
     }
 
     loadHistory();
 
     socket.on('chat message', (msg) => {
-      appendMessage(msg); // live messages
+      if (historyLoaded) {
+        appendMessage(msg); // only add live messages AFTER history is loaded
+      }
     });
 
     socket.on('admin confirmed', () => {
