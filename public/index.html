@@ -33,6 +33,15 @@
       word-wrap: break-word;
       max-width: 80%;
     }
+    .message img.chat-img {
+      max-width: 100%;
+      max-height: 300px;
+      display: block;
+      border-radius: 8px;
+      margin-top: 0.5rem;
+      border: 1px solid #333;
+      object-fit: contain;
+    }
     #form {
       display: flex;
       padding: 1rem;
@@ -56,8 +65,10 @@
       cursor: pointer;
     }
   </style>
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <!-- Socket.IO -->
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
@@ -99,7 +110,18 @@
 
       const item = document.createElement('li');
       item.className = 'message';
-      item.textContent = msg.text;
+
+      const isImage = msg.text.match(/\.(jpeg|jpg|png|gif|webp)$/i) && msg.text.startsWith("http");
+
+      if (isImage) {
+        const img = document.createElement('img');
+        img.src = msg.text;
+        img.alt = "Image";
+        img.className = 'chat-img';
+        item.appendChild(img);
+      } else {
+        item.textContent = msg.text;
+      }
 
       if (isAdmin) {
         if (msg.ip) {
