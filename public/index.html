@@ -25,6 +25,13 @@
       padding: 0.4rem;
       border-radius: 6px;
     }
+    #warning {
+      display: none;
+      color: #f39c12;
+      padding: 0.5rem 1rem;
+      font-size: 0.9rem;
+      background: #2c2c2c;
+    }
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -77,14 +84,12 @@
       <option value="images">#images</option>
     </select>
   </div>
-
+  <div id="warning"></div>
   <ul id="messages"></ul>
-
   <form id="form">
     <input id="input" autocomplete="off" placeholder="Type a message..." />
     <button id="send">Send</button>
   </form>
-
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyBz4pGNNkQa3cKN4WhO3OA7a_M33CJqYU8",
@@ -104,6 +109,7 @@
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
     const channelSelect = document.getElementById('channel');
+    const warningBox = document.getElementById('warning');
 
     let currentChannel = 'text';
     let isAdmin = false;
@@ -113,6 +119,7 @@
       currentChannel = channelSelect.value;
       seenMessages.clear();
       messages.innerHTML = '';
+      warningBox.style.display = 'none';
       loadHistory();
     });
 
@@ -138,8 +145,7 @@
         }
         if (msg.timestamp) {
           const time = new Date(msg.timestamp).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit'
+            hour: '2-digit', minute: '2-digit'
           });
           const timeTag = document.createElement('span');
           timeTag.style.fontSize = '0.8rem';
@@ -185,6 +191,16 @@
         const token = text.split(" ")[1];
         socket.emit("admin login", token);
       } else {
+        if (currentChannel === 'images') {
+          const isImage = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i.test(text);
+          if (!isImage) {
+            warningBox.textContent = "⚠️ Only image links are allowed in #images channel.";
+            warningBox.style.display = 'block';
+            setTimeout(() => warningBox.style.display = 'none', 5000);
+            return;
+          }
+        }
+        warningBox.style.display = 'none';
         socket.emit("chat message", { text, channel: currentChannel });
       }
 

@@ -8,8 +8,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// 🔐 Firebase Admin Setup (path depends on Render or local)
-const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // change to './serviceAccountKey.json' locally
+const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // Or './serviceAccountKey.json' locally
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -24,32 +23,33 @@ app.get('/', (req, res) => {
 });
 
 io.on('connection', (socket) => {
-  const ip =
-    socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim() ||
-    socket.conn.remoteAddress;
+  const ip = socket.handshake.headers['x-forwarded-for']?.split(',')[0].trim() || socket.conn.remoteAddress;
 
   console.log('📡 New connection:', ip);
 
-  // Send last 100 messages for default channel (text) on connect
-  db.ref('messages/text')
-    .limitToLast(100)
-    .once('value', (snapshot) => {
-      const messages = [];
-      snapshot.forEach((child) => messages.push(child.val()));
-      socket.emit('history', messages);
-    });
+  db.ref('messages/text').limitToLast(100).once('value', (snapshot) => {
+    const messages = [];
+    snapshot.forEach((child) => messages.push(child.val()));
+    socket.emit('history', messages);
+  });
 
   socket.on('chat message', (data) => {
     const { text, channel } = data;
     if (typeof text !== 'string' || !text.trim()) return;
 
+    const path = channel || 'text';
+
+    if (path === 'images') {
+      const isImage = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i.test(text.trim());
+      if (!isImage) return;
+    }
+
     const msg = {
       text: text.trim(),
       ip,
-      timestamp: Date.now(),
+      timestamp: Date.now()
     };
 
-    const path = channel || 'text';
     db.ref(`messages/${path}`).push(msg);
     io.emit('chat message', msg);
   });
