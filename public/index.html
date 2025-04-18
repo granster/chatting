@@ -101,8 +101,10 @@
     const seenMessages = new Set();
 
     function appendMessage(msg, id) {
-      const timestamp = msg.timestamp || Date.now();
-      if (!id) id = `${msg.text}-${msg.ip || 'x'}-${timestamp}`;
+      if (!id) {
+        const timestamp = msg.timestamp || Date.now();
+        id = `${msg.text}-${msg.ip || 'x'}-${timestamp}`;
+      }
       if (seenMessages.has(id)) return;
       seenMessages.add(id);
 
@@ -155,18 +157,16 @@
       });
     }
 
-    loadHistory();
+    loadHistory(); // load once on page load
 
     socket.on('chat message', (msg) => {
-      appendMessage(msg);
+      appendMessage(msg); // live message — no key
     });
 
     socket.on('admin confirmed', () => {
       isAdmin = true;
       alert("✅ Admin mode activated");
-      seenMessages.clear();
-      messages.innerHTML = '';
-      loadHistory();
+      // Don't wipe history — just let new ones show IPs
     });
 
     form.addEventListener('submit', (e) => {
