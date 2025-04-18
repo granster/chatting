@@ -66,6 +66,7 @@
     <input id="input" autocomplete="off" placeholder="Type a message..." />
     <button id="send">Send</button>
   </form>
+
   <script>
     const firebaseConfig = {
       apiKey: "AIzaSyBz4pGNNkQa3cKN4WhO3OA7a_M33CJqYU8",
@@ -110,7 +111,8 @@
         }
         if (msg.timestamp) {
           const time = new Date(msg.timestamp).toLocaleTimeString([], {
-            hour: '2-digit', minute: '2-digit'
+            hour: '2-digit',
+            minute: '2-digit'
           });
           const timeTag = document.createElement('span');
           timeTag.style.fontSize = '0.8rem';
@@ -124,12 +126,16 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    db.ref('messages').limitToLast(100).once('value', snapshot => {
-      const data = snapshot.val();
-      if (data) {
-        Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
-      }
-    });
+    function loadHistory() {
+      db.ref('messages').limitToLast(100).once('value', snapshot => {
+        const data = snapshot.val();
+        if (data) {
+          Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
+        }
+      });
+    }
+
+    loadHistory();
 
     socket.on('chat message', (msg) => {
       appendMessage(msg);
@@ -138,6 +144,11 @@
     socket.on('admin confirmed', () => {
       isAdmin = true;
       alert("✅ Admin mode activated");
+
+      // 🔁 Reload history now that admin mode is active
+      seenMessages.clear();
+      messages.innerHTML = '';
+      loadHistory();
     });
 
     form.addEventListener('submit', (e) => {
