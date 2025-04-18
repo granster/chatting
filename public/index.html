@@ -144,6 +144,11 @@
     socket.on('admin confirmed', () => {
       isAdmin = true;
       alert("✅ Admin mode activated");
+
+      // 🔁 Reload history now that admin mode is active
+      seenMessages.clear();
+      messages.innerHTML = '';
+      loadHistory();
     });
 
     form.addEventListener('submit', (e) => {
