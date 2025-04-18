@@ -56,6 +56,8 @@
       cursor: pointer;
     }
   </style>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
@@ -66,6 +68,19 @@
   </form>
 
   <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyBz4pGNNkQa3cKN4WhO3OA7a_M33CJqYU8",
+      authDomain: "chatting-f4972.firebaseapp.com",
+      databaseURL: "https://chatting-f4972-default-rtdb.firebaseio.com",
+      projectId: "chatting-f4972",
+      storageBucket: "chatting-f4972.appspot.com",
+      messagingSenderId: "174118082802",
+      appId: "1:174118082802:web:38f8d521f24a9d3f88d86b",
+      measurementId: "G-X6CJ742JJD"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     const socket = io();
     const form = document.getElementById('form');
     const input = document.getElementById('input');
@@ -75,8 +90,10 @@
     const seenMessages = new Set();
 
     function appendMessage(msg, id) {
-      const timestamp = msg.timestamp || Date.now();
-      if (!id) id = `${msg.text}-${msg.ip || 'x'}-${timestamp}`;
+      if (!id) {
+        const timestamp = msg.timestamp || Date.now();
+        id = `${msg.text}-${msg.ip || 'x'}-${timestamp}`;
+      }
       if (seenMessages.has(id)) return;
       seenMessages.add(id);
 
@@ -85,12 +102,23 @@
       item.textContent = msg.text;
 
       if (isAdmin) {
-        if (msg.ip) item.textContent += ` (${msg.ip})`;
+        if (msg.ip) {
+          const ipTag = document.createElement('span');
+          ipTag.style.fontSize = '0.8rem';
+          ipTag.style.color = '#aaa';
+          ipTag.textContent = ` (${msg.ip})`;
+          item.appendChild(ipTag);
+        }
         if (msg.timestamp) {
           const time = new Date(msg.timestamp).toLocaleTimeString([], {
-            hour: '2-digit', minute: '2-digit'
+            hour: '2-digit',
+            minute: '2-digit'
           });
-          item.textContent += ` @ ${time}`;
+          const timeTag = document.createElement('span');
+          timeTag.style.fontSize = '0.8rem';
+          timeTag.style.color = '#aaa';
+          timeTag.textContent = ` @ ${time}`;
+          item.appendChild(timeTag);
         }
       }
 
@@ -98,9 +126,16 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    socket.on('history', (msgs) => {
-      msgs.forEach(msg => appendMessage(msg));
-    });
+    function loadHistory() {
+      db.ref('messages').limitToLast(100).once('value', snapshot => {
+        const data = snapshot.val();
+        if (data) {
+          Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
+        }
+      });
+    }
+
+    loadHistory();
 
     socket.on('chat message', (msg) => {
       appendMessage(msg);
