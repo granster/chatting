@@ -16,22 +16,6 @@
       flex-direction: column;
       height: 100vh;
     }
-    #channel-selector {
-      background: #1a1a1a;
-      padding: 0.75rem;
-    }
-    #channel {
-      font-size: 1rem;
-      padding: 0.4rem;
-      border-radius: 6px;
-    }
-    #warning {
-      display: none;
-      color: #f39c12;
-      padding: 0.5rem 1rem;
-      font-size: 0.9rem;
-      background: #2c2c2c;
-    }
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -77,14 +61,6 @@
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
-  <div id="channel-selector">
-    <label for="channel">Channel:</label>
-    <select id="channel">
-      <option value="text">#text</option>
-      <option value="images">#images</option>
-    </select>
-  </div>
-  <div id="warning"></div>
   <ul id="messages"></ul>
   <form id="form">
     <input id="input" autocomplete="off" placeholder="Type a message..." />
@@ -108,20 +84,9 @@
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
-    const channelSelect = document.getElementById('channel');
-    const warningBox = document.getElementById('warning');
 
-    let currentChannel = 'text';
     let isAdmin = false;
     const seenMessages = new Set();
-
-    channelSelect.addEventListener('change', () => {
-      currentChannel = channelSelect.value;
-      seenMessages.clear();
-      messages.innerHTML = '';
-      warningBox.style.display = 'none';
-      loadHistory();
-    });
 
     function appendMessage(msg, id) {
       if (!id) {
@@ -159,16 +124,12 @@
       messages.scrollTop = messages.scrollHeight;
     }
 
-    function loadHistory() {
-      db.ref(`messages/${currentChannel}`).limitToLast(100).once('value', snapshot => {
-        const data = snapshot.val();
-        if (data) {
-          Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
-        }
-      });
-    }
-
-    loadHistory();
+    db.ref('messages').limitToLast(100).once('value', snapshot => {
+      const data = snapshot.val();
+      if (data) {
+        Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
+      }
+    });
 
     socket.on('chat message', (msg) => {
       appendMessage(msg);
@@ -177,9 +138,6 @@
     socket.on('admin confirmed', () => {
       isAdmin = true;
       alert("✅ Admin mode activated");
-      seenMessages.clear();
-      messages.innerHTML = '';
-      loadHistory();
     });
 
     form.addEventListener('submit', (e) => {
@@ -191,17 +149,7 @@
         const token = text.split(" ")[1];
         socket.emit("admin login", token);
       } else {
-        if (currentChannel === 'images') {
-          const isImage = /(https?:\/\/.*\.(?:png|jpg|jpeg|gif|webp))/i.test(text);
-          if (!isImage) {
-            warningBox.textContent = "⚠️ Only image links are allowed in #images channel.";
-            warningBox.style.display = 'block';
-            setTimeout(() => warningBox.style.display = 'none', 5000);
-            return;
-          }
-        }
-        warningBox.style.display = 'none';
-        socket.emit("chat message", { text, channel: currentChannel });
+        socket.emit("chat message", text);
       }
 
       input.value = '';
