@@ -101,6 +101,7 @@
     const seenMessages = new Set();
 
     function appendMessage(msg, id) {
+      // Prefer Firebase key if given, else build unique fallback
       if (!id) {
         const timestamp = msg.timestamp || Date.now();
         id = `${msg.text}-${msg.ip || 'x'}-${timestamp}`;
@@ -160,7 +161,7 @@
     loadHistory();
 
     socket.on('chat message', (msg) => {
-      appendMessage(msg);
+      appendMessage(msg); // live messages
     });
 
     socket.on('admin confirmed', () => {
