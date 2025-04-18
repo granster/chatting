@@ -8,8 +8,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// 🔐 Firebase Admin Setup for Render
-const serviceAccount = require('/etc/secrets/serviceAccountKey.json');
+// 🔐 Firebase Admin Setup (path depends on Render or local)
+const serviceAccount = require('/etc/secrets/serviceAccountKey.json'); // change to './serviceAccountKey.json' locally
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
@@ -30,8 +30,8 @@ io.on('connection', (socket) => {
 
   console.log('📡 New connection:', ip);
 
-  // Send last 100 messages from Firebase
-  db.ref('messages')
+  // Send last 100 messages for default channel (text) on connect
+  db.ref('messages/text')
     .limitToLast(100)
     .once('value', (snapshot) => {
       const messages = [];
@@ -39,7 +39,8 @@ io.on('connection', (socket) => {
       socket.emit('history', messages);
     });
 
-  socket.on('chat message', (text) => {
+  socket.on('chat message', (data) => {
+    const { text, channel } = data;
     if (typeof text !== 'string' || !text.trim()) return;
 
     const msg = {
@@ -48,7 +49,8 @@ io.on('connection', (socket) => {
       timestamp: Date.now(),
     };
 
-    db.ref('messages').push(msg);
+    const path = channel || 'text';
+    db.ref(`messages/${path}`).push(msg);
     io.emit('chat message', msg);
   });
 

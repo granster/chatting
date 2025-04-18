@@ -16,6 +16,15 @@
       flex-direction: column;
       height: 100vh;
     }
+    #channel-selector {
+      background: #1a1a1a;
+      padding: 0.75rem;
+    }
+    #channel {
+      font-size: 1rem;
+      padding: 0.4rem;
+      border-radius: 6px;
+    }
     #messages {
       flex: 1;
       overflow-y: auto;
@@ -61,7 +70,16 @@
   <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
+  <div id="channel-selector">
+    <label for="channel">Channel:</label>
+    <select id="channel">
+      <option value="text">#text</option>
+      <option value="images">#images</option>
+    </select>
+  </div>
+
   <ul id="messages"></ul>
+
   <form id="form">
     <input id="input" autocomplete="off" placeholder="Type a message..." />
     <button id="send">Send</button>
@@ -85,9 +103,18 @@
     const form = document.getElementById('form');
     const input = document.getElementById('input');
     const messages = document.getElementById('messages');
+    const channelSelect = document.getElementById('channel');
 
+    let currentChannel = 'text';
     let isAdmin = false;
     const seenMessages = new Set();
+
+    channelSelect.addEventListener('change', () => {
+      currentChannel = channelSelect.value;
+      seenMessages.clear();
+      messages.innerHTML = '';
+      loadHistory();
+    });
 
     function appendMessage(msg, id) {
       if (!id) {
@@ -127,7 +154,7 @@
     }
 
     function loadHistory() {
-      db.ref('messages').limitToLast(100).once('value', snapshot => {
+      db.ref(`messages/${currentChannel}`).limitToLast(100).once('value', snapshot => {
         const data = snapshot.val();
         if (data) {
           Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
@@ -144,8 +171,6 @@
     socket.on('admin confirmed', () => {
       isAdmin = true;
       alert("✅ Admin mode activated");
-
-      // 🔁 Reload history now that admin mode is active
       seenMessages.clear();
       messages.innerHTML = '';
       loadHistory();
@@ -160,7 +185,7 @@
         const token = text.split(" ")[1];
         socket.emit("admin login", token);
       } else {
-        socket.emit("chat message", text);
+        socket.emit("chat message", { text, channel: currentChannel });
       }
 
       input.value = '';
