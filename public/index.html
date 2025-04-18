@@ -1,197 +1,118 @@
+<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Chat App</title>
+  <title>Firebase Socket Chat</title>
   <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      padding: 0;
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #121212;
-      color: white;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
-    }
-    #messages {
-      flex: 1;
-      overflow-y: auto;
-      padding: 1rem;
-      list-style: none;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
-    }
-    .message {
-      background: #1e1e1e;
-      padding: 0.75rem 1rem;
-      border-radius: 8px;
-      word-wrap: break-word;
-      max-width: 80%;
-    }
-    .message img.chat-img {
-      max-width: 100%;
-      max-height: 300px;
-      display: block;
-      border-radius: 8px;
-      margin-top: 0.5rem;
-      border: 1px solid #333;
-      object-fit: contain;
-    }
-    #form {
-      display: flex;
-      padding: 1rem;
-      background-color: #1a1a1a;
-      gap: 0.75rem;
-    }
-    #input {
-      flex: 1;
-      padding: 0.75rem;
-      border: none;
-      border-radius: 6px;
-      font-size: 1rem;
-    }
-    #send {
-      background-color: #ff7675;
-      color: white;
-      border: none;
-      padding: 0.75rem 1.2rem;
-      font-size: 1rem;
-      border-radius: 6px;
-      cursor: pointer;
-    }
+    /* Simple styles for chat */
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #messages { list-style-type: none; padding: 0; max-height: 300px; overflow-y: auto; }
+    #messages li { margin-bottom: 10px; }
+    #messages img { max-width: 200px; max-height: 150px; display: block; margin-top: 5px; }
+    .meta { color: gray; font-size: 0.9em; display: none; }  /* Hidden by default, shown in admin mode */
   </style>
-  <!-- Firebase -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-  <!-- Socket.IO -->
-  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
   <ul id="messages"></ul>
-  <form id="form">
-    <input id="input" autocomplete="off" placeholder="Type a message..." />
-    <button id="send">Send</button>
+  <form id="chat-form" autocomplete="off">
+    <input id="messageInput" type="text" placeholder="Type a message..." size="50" />
+    <button type="submit">Send</button>
   </form>
 
+  <!-- Socket.IO client library (served from Express) -->
+  <script src="/socket.io/socket.io.js"></script>
+  <!-- (Firebase SDK scripts would go here if the client needed direct DB access; assumed configured elsewhere) -->
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyBz4pGNNkQa3cKN4WhO3OA7a_M33CJqYU8",
-      authDomain: "chatting-f4972.firebaseapp.com",
-      databaseURL: "https://chatting-f4972-default-rtdb.firebaseio.com",
-      projectId: "chatting-f4972",
-      storageBucket: "chatting-f4972.appspot.com",
-      messagingSenderId: "174118082802",
-      appId: "1:174118082802:web:38f8d521f24a9d3f88d86b",
-      measurementId: "G-X6CJ742JJD"
-    };
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
+    const socket = io();  // Connect to the Socket.IO server
 
-    const socket = io();
-    const form = document.getElementById('form');
-    const input = document.getElementById('input');
-    const messages = document.getElementById('messages');
+    const messagesList = document.getElementById('messages');
+    const messageInput = document.getElementById('messageInput');
+    const chatForm = document.getElementById('chat-form');
+    const ADMIN_PASSWORD = "admin123";  // Example admin password (set your own)
 
-    let isAdmin = false;
-    let historyLoaded = false;
-    const seenMessages = new Set();
-    const pendingLiveMessages = [];
+    let adminMode = false;  // Tracks whether admin mode is enabled
 
-    function appendMessage(msg, id) {
-      if (!id) {
-        const timestamp = msg.timestamp || Date.now();
-        id = `${msg.text}-${msg.ip || 'x'}-${timestamp}`;
-      }
-      if (seenMessages.has(id)) return;
-      seenMessages.add(id);
+    // Helper function to safely create message list items with possible image previews
+    function addMessageToList(msg) {
+      const listItem = document.createElement('li');
 
-      const item = document.createElement('li');
-      item.className = 'message';
+      // Format timestamp to a readable string
+      const timeString = new Date(msg.timestamp).toLocaleString();
 
-      const isImage = msg.text.match(/\.(jpeg|jpg|png|gif|webp)$/i) && msg.text.startsWith("http");
-
-      if (isImage) {
-        const img = document.createElement('img');
-        img.src = msg.text;
-        img.alt = "Image";
-        img.className = 'chat-img';
-        item.appendChild(img);
+      // Check if message text contains an image URL
+      const imageRegex = /(https?:\/\/\S+\.(?:png|jpg|jpeg|gif))/gi;
+      let contentHtml;
+      if (imageRegex.test(msg.text)) {
+        // If there's an image link, replace it with an <img> tag
+        contentHtml = msg.text.replace(imageRegex, 
+          '<img src="$1" alt="image" />');
+        // Escape any other HTML in text (basic)
+        contentHtml = contentHtml.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        // Then re-insert the image tag HTML (the above replace escaped it, so do it separately)
+        contentHtml = contentHtml.replace(/&lt;img src="(.+?)" alt="image" \/&gt;/g, 
+          '<img src="$1" alt="image" />');
+        listItem.innerHTML = contentHtml;
       } else {
-        item.textContent = msg.text;
+        // No image link, just text - safe to use textContent
+        listItem.textContent = msg.text;
       }
 
-      if (isAdmin) {
-        if (msg.ip) {
-          const ipTag = document.createElement('span');
-          ipTag.style.fontSize = '0.8rem';
-          ipTag.style.color = '#aaa';
-          ipTag.textContent = ` (${msg.ip})`;
-          item.appendChild(ipTag);
-        }
-        if (msg.timestamp) {
-          const time = new Date(msg.timestamp).toLocaleTimeString([], {
-            hour: '2-digit',
-            minute: '2-digit'
-          });
-          const timeTag = document.createElement('span');
-          timeTag.style.fontSize = '0.8rem';
-          timeTag.style.color = '#aaa';
-          timeTag.textContent = ` @ ${time}`;
-          item.appendChild(timeTag);
-        }
+      // Append metadata (IP and timestamp) span, hidden by default
+      const metaSpan = document.createElement('span');
+      metaSpan.className = 'meta';
+      metaSpan.textContent = ` (IP: ${msg.ip}, Time: ${timeString})`;
+      listItem.appendChild(metaSpan);
+
+      // If admin mode is on, show the metadata; otherwise it stays hidden
+      if (adminMode) {
+        metaSpan.style.display = 'inline';
       }
 
-      messages.appendChild(item);
-      messages.scrollTop = messages.scrollHeight;
+      messagesList.appendChild(listItem);
+      messagesList.scrollTop = messagesList.scrollHeight;  // Scroll to bottom
     }
 
-    function loadHistory() {
-      db.ref('messages').limitToLast(100).once('value', snapshot => {
-        const data = snapshot.val();
-        if (data) {
-          Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
-        }
-        historyLoaded = true;
+    // Listen for history of messages from the server (last 100 messages on page load)
+    socket.on('history', (messages) => {
+      messagesList.innerHTML = "";  // Clear any existing messages
+      messages.forEach(msg => addMessageToList(msg));
+    });
 
-        // After history, flush any pending live messages
-        pendingLiveMessages.forEach(msg => appendMessage(msg));
-        pendingLiveMessages.length = 0;
-      });
-    }
-
-    loadHistory();
-
+    // Listen for new chat messages from the server in real-time
     socket.on('chat message', (msg) => {
-      if (historyLoaded) {
-        appendMessage(msg);
-      } else {
-        pendingLiveMessages.push(msg);
-      }
+      addMessageToList(msg);
     });
 
-    socket.on('admin confirmed', () => {
-      isAdmin = true;
-      alert("✅ Admin mode activated");
-    });
-
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      const text = input.value.trim();
-      if (!text) return;
+    // Form submission to send a new message or admin command
+    chatForm.addEventListener('submit', function(event) {
+      event.preventDefault();
+      const text = messageInput.value.trim();
+      if (text === "") return;  // ignore empty
 
       if (text.startsWith("/admin ")) {
-        const token = text.split(" ")[1];
-        socket.emit("admin login", token);
+        // Admin command to toggle admin mode
+        const pass = text.split(" ")[1];
+        if (pass === ADMIN_PASSWORD) {
+          adminMode = !adminMode;  // toggle admin mode
+          // Show or hide all metadata spans based on the new mode
+          document.querySelectorAll('.meta').forEach(span => {
+            span.style.display = adminMode ? 'inline' : 'none';
+          });
+          if (adminMode) {
+            console.log("Admin mode ENABLED");
+          } else {
+            console.log("Admin mode DISABLED");
+          }
+        } else {
+          console.log("Admin password incorrect.");  // feedback (could also show in UI)
+        }
+        // Do not send this as a chat message to others
       } else {
-        socket.emit("chat message", text);
+        // Normal chat message: send to server
+        socket.emit('chat message', text);
       }
-
-      input.value = '';
+      messageInput.value = "";  // clear input
     });
   </script>
 </body>
