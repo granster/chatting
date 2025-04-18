@@ -33,12 +33,6 @@
       word-wrap: break-word;
       max-width: 80%;
     }
-    .message img {
-      max-width: 100%;
-      height: auto;
-      margin-top: 0.5rem;
-      border-radius: 4px;
-    }
     #form {
       display: flex;
       padding: 1rem;
@@ -88,17 +82,7 @@
 
       const item = document.createElement('li');
       item.className = 'message';
-
-      // Detect if the message text is an image URL
-      const imageRegex = /(https?:\/\/\S+\.(?:png|jpg|jpeg|gif))/i;
-      if (imageRegex.test(msg.text)) {
-        const img = document.createElement('img');
-        img.src = msg.text;
-        img.alt = 'Image';
-        item.appendChild(img);
-      } else {
-        item.textContent = msg.text;
-      }
+      item.textContent = msg.text;
 
       if (isAdmin) {
         if (msg.ip) item.textContent += ` (${msg.ip})`;
