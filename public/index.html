@@ -98,8 +98,9 @@
     const messages = document.getElementById('messages');
 
     let isAdmin = false;
-    const seenMessages = new Set();
     let historyLoaded = false;
+    const seenMessages = new Set();
+    const pendingLiveMessages = [];
 
     function appendMessage(msg, id) {
       if (!id) {
@@ -156,6 +157,10 @@
           Object.entries(data).forEach(([key, msg]) => appendMessage(msg, key));
         }
         historyLoaded = true;
+
+        // After history, flush any pending live messages
+        pendingLiveMessages.forEach(msg => appendMessage(msg));
+        pendingLiveMessages.length = 0;
       });
     }
 
@@ -163,7 +168,9 @@
 
     socket.on('chat message', (msg) => {
       if (historyLoaded) {
-        appendMessage(msg); // only add live messages AFTER history is loaded
+        appendMessage(msg);
+      } else {
+        pendingLiveMessages.push(msg);
       }
     });
 
